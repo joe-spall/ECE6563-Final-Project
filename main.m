@@ -1,3 +1,4 @@
+
 % Same script as leader_follower.m but with additional plotting routines.
 % In this experiment edges between robots will be plotted as well as robot
 % labels and leader goal locations.
@@ -10,6 +11,9 @@
 %Run the simulation for a specific number of iterations
 iterations = 5000;
 
+visibility_types = {'uniform', 'wedge'};
+visibility_cur_type = cell2mat(visibility_types(2));
+
 %% Set up the Robotarium object
 
 N = 6;
@@ -21,17 +25,11 @@ initial_positions = generate_initial_conditions(N, ...
     'Spacing', 0.5);
 r = Robotarium('NumberOfRobots', N, 'ShowFigure', true, 'InitialConditions',initial_positions);
 
-%% Create the desired Laplacian
-
-%Graph laplacian
-followers = -completeGL(N-1);
-L = zeros(N, N);
-L(2:N, 2:N) = followers;
-L(2, 2) = L(2, 2) + 1;
-L(2, 1) = -1;
-
 %Initialize velocity vector
 dxi = zeros(2, N);
+
+%Tracks previous theta for rotation tracking
+old_theta = zeros(1,N);
 
 %State for leader
 state = 1;
@@ -40,17 +38,23 @@ state = 1;
 formation_control_gain = 5;
 desired_distance = 0.3;
 
-% All agent
-visibilty_dist_meter = 0.5;
-
+% Visibility
+visibility_dist_meter = 0.5;
+visibility_line_width = 3;
+% Vision angle (only for non-uniform)
+visibility_angle = pi/3;
 
 % Leader
 leader_const_velocity = 0.2;
 leader_waypoint_dist = 0.05;
 leader_boundary = r.robot_diameter;
+leader_color = 'r';
 
 % Follower
+follower_color = 'b';
 
+% Connection color
+connection_color = 'k';
 %% Grab tools we need to convert from single-integrator to unicycle dynamics
 
 % Single-integrator -> unicycle dynamics mapping
@@ -68,7 +72,7 @@ leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVeloci
 CM = ['k','b','r','g'];
 
 %Marker, font, and line sizes
-marker_size_robot = determine_robot_marker_size(r,visibilty_dist_meter);
+marker_size_robot = determine_robot_marker_size(r,visibility_dist_meter);
 marker_size_goal = determine_marker_size(r, 0.2);
 font_size = determine_font_size(r, 0.05);
 line_width = 3;
@@ -77,21 +81,25 @@ line_width = 3;
 %Need location of robots
 x=r.get_poses();
 
-% Follower connections to each other
-[rows, cols] = find(L == 1);
-
-%Only considering half due to symmetric nature
+% Setup follower connections to each other
+axes = get(gca, 'Position');
+xlims = get(gca, 'xlim');
+ylims = get(gca, 'ylim');
 for i = 1:N
     for j = 1:N
         if i ~= j
-            connection_line(i,j) = line([x(1,rows(k)), x(1,cols(k))],[x(2,rows(k)), x(2,cols(k))], 'LineWidth', line_width, 'Color', 'b','LineStyle','none'); 
+%            [x_i_out, y_i_out] = norm_coord(x(1,i), x(2,i), get(gca, 'Position'), xlims, ylims)
+%            [x_j_out, y_j_out] = norm_coord(x(1,j), x(2,j), get(gca, 'Position'), xlims, ylims)
+
+%            connection_line(i,j) = annotation('arrow',[x_i_out,x_j_out],...
+%                [y_i_out,y_j_out], ...
+%                'LineWidth', line_width, 'Color', connection_color,...
+%                'Units','points');
+            connection_line(i,j) = line([x(1,i), x(1,j)],[x(2,i), x(2,j)],...
+                'LineWidth', line_width, 'Color', connection_color,'LineStyle','none');
         end
     end 
 end
-
-% Leader connection assuming only connection between first and second
-% robot.
-%ll3 = line([x(1,1), x(1,2)],[x(2,1), x(2,2)], 'LineWidth', line_width, 'Color', 'r'); 
 
 % Follower plot setup
 for j = 1:N-1    
@@ -99,16 +107,23 @@ for j = 1:N-1
     follower_caption{j} = sprintf('F%d', j);
     % Plot the robot label text 
     follower_labels{j} = text(500, 500, follower_caption{j}, 'FontSize', font_size, 'FontWeight', 'bold');
-
 end
 
-% Color circle plots
+% Visibility plots
 for i = 1:N
-    color = 'b';
+    color = follower_color;
     if i == 1
-        color = 'r';
+        color = leader_color;
     end
-    circle_plot(i) = plot(x(1,i),x(2,i),'o','MarkerSize', marker_size_robot,'LineWidth',5,'Color',color);
+    
+    if strcmp(visibility_cur_type,'uniform')
+        visibility_plot(i) = plot(x(1,i),x(2,i),'o','MarkerSize', ...
+            marker_size_robot,'LineWidth',visibility_line_width,'Color',color);
+    elseif strcmp(visibility_cur_type,'wedge')
+        visibility_plot(i) = arcpatch(x(1,i),x(2,i),visibility_dist_meter,...
+            [rad2deg(-visibility_angle/2)+rad2deg(x(3,i))...
+            ,rad2deg(visibility_angle/2)+rad2deg(x(3,i))], color);
+    end  
 end
 
 %Leader plot setup
@@ -118,11 +133,10 @@ leader_plot = plot(random_waypoint(1), random_waypoint(2),'s','MarkerSize',marke
 r.step();
 
 for t = 1:iterations
-    
+    old_pose = x;
     % Retrieve the most recent poses from the Robotarium.  The time delay is
     % approximately 0.033 seconds
     x = r.get_poses();
-    
     %% Algorithm
     
 %     for i = 2:N
@@ -221,11 +235,17 @@ for t = 1:iterations
     % Connection lines showing if in visibility region
     for i = 1:N
         for j = 1:N
-            if i ~= j 
-                if norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]) < visibilty_dist_meter
+            if i ~= j
+                % Polar coordinate conversion
+                radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
+                angle = atan2d(x(2,j) - x(2,i), x(1,j) - x(1,i));
+                angle_start = rad2deg((visibility_angle/2)+x(3,i));
+                angle_end = rad2deg((-visibility_angle/2)+x(3,i));
+                if radius < visibility_dist_meter && ...
+                   angle > angle_end && angle < angle_start
                     connection_line(i,j).XData = [x(1,i), x(1,j)];
                     connection_line(i,j).YData = [x(2,i), x(2,j)];
-                    connection_line(i,j).LineStyle = ':'; 
+                    connection_line(i,j).LineStyle = ':';
                 else
                     connection_line(i,j).LineStyle = 'none';
                 end
@@ -235,22 +255,46 @@ for t = 1:iterations
     
     %Update position of label and graph connection for leader
     leader_label.Position = x(1:2, 1) + [-0.15;0.15];
-    %ll3.XData = [x(1,1), x(1,2)];
-    %ll3.YData = [x(2,1), x(2,2)];
     
     % Resize Marker Sizes (In case user changes simulated figure window
     % size, this is unnecessary in submission as the figure window 
     % does not change size).
 
-    marker_size_robot = num2cell(ones(1,N)*determine_robot_marker_size(r,visibilty_dist_meter));
-    [circle_plot.MarkerSize] = marker_size_robot{:};
+    marker_size_robot = num2cell(ones(1,N)*determine_robot_marker_size(r,visibility_dist_meter));
+    [visibility_plot.MarkerSize] = marker_size_robot{:};
     font_size = determine_font_size(r, 0.05);
     leader_label.FontSize = font_size;
     
     for n = 1:N
         % Circle plot position updates
-        circle_plot(n).XData = x(1,n);
-        circle_plot(n).YData = x(2,n);
+        if strcmp(visibility_cur_type,'uniform')
+            visibility_plot(n).XData = x(1,n);
+            visibility_plot(n).YData = x(2,n);
+        elseif strcmp(visibility_cur_type,'wedge')
+            cur_vertices = visibility_plot(n).Vertices;
+            % Subtract to make center of robot origin
+            
+            cur_vertices(:,1:2) = cur_vertices(:,1:2) - ...
+                [x(1,n)*ones(size(cur_vertices,1),1), x(2,n)*ones(size(cur_vertices,1),1)];
+            % Get in homogenous coordinate form
+            cur_vertices(:,3) = 1;
+            d_pos = x(1:2,n)-old_pose(1:2,n);
+            d_theta = x(3,n)-old_pose(3,n);
+            homog = [cos(d_theta) -sin(d_theta) d_pos(1);
+                    sin(d_theta)  cos(d_theta)  d_pos(2);
+                    0             0             1];
+            % Apply homogenous coordinate rot and translation
+            for v = 1:size(cur_vertices,1)
+                cur_vertices(v,:) = (homog*cur_vertices(v,:).').';
+            end
+            % Undo homogenous coordinate
+            cur_vertices(:,3) = 0;
+            % Add to make global coordinates
+            cur_vertices(:,1:2) = cur_vertices(:,1:2) + ...
+                [x(1,n)*ones(size(cur_vertices,1),1), x(2,n)*ones(size(cur_vertices,1),1)];
+            visibility_plot(n).Vertices = cur_vertices;
+        end
+
         % Have to update font in loop for some conversion reasons.
         % Again this is unnecessary when submitting as the figure
         % window does not change size when deployed on the Robotarium.
@@ -267,6 +311,14 @@ end
 r.debug();
 
 %% Helper Functions
+function [x_out, y_out] = norm_coord(x, y, axes, xlims, ylims)
+    x_out = ((x-xlims(1))/(xlims(2) - xlims(1)))*axes(3);
+    y_out = ((y-ylims(1))/(ylims(2) - ylims(1)))*axes(4);
+    x_out = axes(1) + x_out;
+    y_out = axes(2) + y_out;
+end       
+
+
 
 % Marker Size Helper Function to scale size with figure window
 % Input: robotarium instance, desired size of the marker in meters
@@ -331,4 +383,5 @@ robot_ratio = (robot_vision_distance_meters)/...
 marker_size = cursize(3) * robot_ratio;
 
 end
+
 
