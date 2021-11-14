@@ -6,6 +6,9 @@
 % Sean Wilson and Joseph Spall
 % 07/2019
 
+clear;close all;clc
+init
+
 %% Experiment Constants
 
 %Run the simulation for a specific number of iterations
@@ -14,25 +17,12 @@ iterations = 5000;
 visibility_types = {'uniform', 'wedge'};
 visibility_cur_type = cell2mat(visibility_types(2));
 
-%% Set up the Robotarium object
-
+%Number of agents
 N = 6;
+%Number of leaders
+Nl = 2;
 robot_diameter = 0.11;
 boundaries = [-1.6,1.6,-1,1];
-initial_positions = generate_initial_conditions(N, ...
-    'Width', boundaries(2)-boundaries(1)-robot_diameter, ...
-    'Height', boundaries(4)-boundaries(3)-robot_diameter, ...
-    'Spacing', 0.5);
-r = Robotarium('NumberOfRobots', N, 'ShowFigure', true, 'InitialConditions',initial_positions);
-
-%Initialize velocity vector
-dxi = zeros(2, N);
-
-%Tracks previous theta for rotation tracking
-old_theta = zeros(1,N);
-
-%State for leader
-state = 1;
 
 % These are gains for our formation control algorithm
 formation_control_gain = 5;
@@ -47,14 +37,54 @@ visibility_angle = pi/3;
 % Leader
 leader_const_velocity = 0.2;
 leader_waypoint_dist = 0.05;
-leader_boundary = r.robot_diameter;
 leader_color = 'r';
 
 % Follower
 follower_color = 'b';
 
-% Connection color
+% Connection
+connection_line = gobjects(N,N);
 connection_color = 'k';
+
+% Captions
+leader_caption = cell(Nl);
+follower_caption = cell(N-Nl);
+
+% Labels
+leader_labels = gobjects(Nl,1);
+follower_labels = gobjects(N-Nl,1);
+
+%waypoints
+waypoint_plot = gobjects(Nl,1);
+
+%% Set up the Robotarium object
+
+initial_positions = generate_initial_conditions(N, ...
+    'Width', boundaries(2)-boundaries(1)-robot_diameter, ...
+    'Height', boundaries(4)-boundaries(3)-robot_diameter, ...
+    'Spacing', 0.5);
+r = Robotarium('NumberOfRobots', N, 'ShowFigure', true, 'InitialConditions',initial_positions);
+
+%Leader boundary
+leader_boundary = r.robot_diameter;
+
+%Initialize velocity vector
+dxi = zeros(2, N);
+
+%Tracks previous theta for rotation tracking
+old_theta = zeros(1,N);
+
+%States
+L_states = 1:Nl; %Leaders
+F_states = Nl+1:N; %Followers
+
+%Waypoints
+random_waypoint = zeros(2,Nl);
+
+% Visibility plots
+visibility_plot = gobjects(1,N);
+
+
 %% Grab tools we need to convert from single-integrator to unicycle dynamics
 
 % Single-integrator -> unicycle dynamics mapping
@@ -81,13 +111,13 @@ line_width = 3;
 %Need location of robots
 x=r.get_poses();
 
-% Setup follower connections to each other
+% Setup agents connections to each other
 axes = get(gca, 'Position');
 xlims = get(gca, 'xlim');
 ylims = get(gca, 'ylim');
+
 for i = 1:N
     for j = 1:N
-        if i ~= j
 %            [x_i_out, y_i_out] = norm_coord(x(1,i), x(2,i), get(gca, 'Position'), xlims, ylims)
 %            [x_j_out, y_j_out] = norm_coord(x(1,j), x(2,j), get(gca, 'Position'), xlims, ylims)
 
@@ -95,41 +125,44 @@ for i = 1:N
 %                [y_i_out,y_j_out], ...
 %                'LineWidth', line_width, 'Color', connection_color,...
 %                'Units','points');
-            connection_line(i,j) = line([x(1,i), x(1,j)],[x(2,i), x(2,j)],...
-                'LineWidth', line_width, 'Color', connection_color,'LineStyle','none');
-        end
+        connection_line(i,j) = line([x(1,i), x(1,j)],[x(2,i), x(2,j)],...
+            'LineWidth', line_width, 'Color', connection_color,'LineStyle','none');
     end 
 end
 
-% Follower plot setup
-for j = 1:N-1    
-    % Text for robot identification
-    follower_caption{j} = sprintf('F%d', j);
-    % Plot the robot label text 
-    follower_labels{j} = text(500, 500, follower_caption{j}, 'FontSize', font_size, 'FontWeight', 'bold');
-end
-
-% Visibility plots
-for i = 1:N
-    color = follower_color;
-    if i == 1
+% Caption/Label plot setup
+for j = 1:N    
+    if any(j==L_states)
+        % Text color
         color = leader_color;
+        % Text for robot identification
+        leader_caption{j} = sprintf('L%d', j);
+        % Plot the robot label text 
+        leader_labels(j) = text(500, 500, leader_caption{j}, 'FontSize', font_size, 'FontWeight', 'bold');
+    else
+        % Text color
+        color = follower_color;
+        % Text for robot identification
+        follower_caption{j-Nl} = sprintf('F%d', j-Nl);
+        % Plot the robot label text 
+        follower_labels(j-Nl) = text(500, 500, follower_caption{j-Nl}, 'FontSize', font_size, 'FontWeight', 'bold');
     end
     
+    % Visibility Plots
     if strcmp(visibility_cur_type,'uniform')
-        visibility_plot(i) = plot(x(1,i),x(2,i),'o','MarkerSize', ...
+        visibility_plot(j) = plot(x(1,j),x(2,j),'o','MarkerSize', ...
             marker_size_robot,'LineWidth',visibility_line_width,'Color',color);
     elseif strcmp(visibility_cur_type,'wedge')
-        visibility_plot(i) = arcpatch(x(1,i),x(2,i),visibility_dist_meter,...
-            [rad2deg(-visibility_angle/2)+rad2deg(x(3,i))...
-            ,rad2deg(visibility_angle/2)+rad2deg(x(3,i))], color);
+        visibility_plot(j) = arcpatch(x(1,j),x(2,j),visibility_dist_meter,...
+            [rad2deg(-visibility_angle/2)+rad2deg(x(3,j))...
+            ,rad2deg(visibility_angle/2)+rad2deg(x(3,j))], color);
     end  
+    
+    % Waypoint plot
+    if any(j==L_states)
+        waypoint_plot(j) = plot(random_waypoint(1,j), random_waypoint(2,j),'s','MarkerSize',marker_size_goal,'LineWidth',2,'Color','r');
+    end
 end
-
-%Leader plot setup
-random_waypoint = [0;0];
-leader_label = text(500, 500, 'L1', 'FontSize', font_size, 'FontWeight', 'bold', 'Color', 'r');
-leader_plot = plot(random_waypoint(1), random_waypoint(2),'s','MarkerSize',marker_size_goal,'LineWidth',2,'Color','r');
 r.step();
 
 for t = 1:iterations
@@ -137,9 +170,28 @@ for t = 1:iterations
     % Retrieve the most recent poses from the Robotarium.  The time delay is
     % approximately 0.033 seconds
     x = r.get_poses();
-    %% Algorithm
     
-%     for i = 2:N
+    %% Check for Connections
+    A = zeros(N);
+    for i = 1:N
+        for j = 1:N
+            if i ~= j
+                % Polar coordinate conversion
+                radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
+                angle = atan2(x(2,j) - x(2,i), x(1,j) - x(1,i));
+                angle_start = (visibility_angle/2)+x(3,i);
+                angle_end = (-visibility_angle/2)+x(3,i);
+                if radius < visibility_dist_meter && ...
+                   angle > angle_end && angle < angle_start
+                    A(i,j) = 1;
+                end
+            end
+        end 
+    end
+    
+    %% Follower Controller
+    
+%     for i = F_states
 %         
 %         %Zero velocity and get the topological neighbors of agent i
 %         dxi(:, i) = [0 ; 0];
@@ -154,6 +206,7 @@ for t = 1:iterations
 %     
     %% Leader Controller
     %% Make the leader travel between waypoints
+    % TODO -- multiple leaders...state variable now array L_states
 %     waypoint = waypoints(:, state);
 %     
 %     switch state        
@@ -194,12 +247,14 @@ for t = 1:iterations
 %     dxi(:,1) = rotation_random*leader_const_velocity*[1; 0];
 %     
     % Random Position
-    if t == 1 || norm(([x(1,1); x(2,1)]-random_waypoint)) < leader_waypoint_dist
-        random_x = (r.boundaries(2)-leader_boundary)*2*(rand-0.5);
-        random_y = (r.boundaries(4)-leader_boundary)*2*(rand-0.5);
-        random_waypoint = [random_x;random_y];
+    for n = L_states
+        if t == 1 || norm(([x(1,n); x(2,n)]-random_waypoint(:,n))) < leader_waypoint_dist
+            random_x = (r.boundaries(2)-leader_boundary)*2*(rand-0.5);
+            random_y = (r.boundaries(4)-leader_boundary)*2*(rand-0.5);
+            random_waypoint(:,n) = [random_x;random_y];
+        end
+        dxi(:, n) = leader_controller(x(1:2, n), random_waypoint(:,n));
     end
-    dxi(:, 1) = leader_controller(x(1:2, 1), random_waypoint);
 
     %% Avoid actuator errors
     
@@ -221,51 +276,47 @@ for t = 1:iterations
     
     %% Update Plot Handles
     
-    marker_size_goal = num2cell(ones(1,1)*determine_marker_size(r, 0.2));
-    [leader_plot.MarkerSize] = marker_size_goal{:};
-    leader_plot.XData = random_waypoint(1);
-    leader_plot.YData = random_waypoint(2);
+    %Update Waypoints
+    marker_size_goal = determine_marker_size(r, 0.2);
+    for j = 1:Nl
+        waypoint_plot(j).MarkerSize = marker_size_goal;
+        waypoint_plot(j).XData = random_waypoint(1,j);
+        waypoint_plot(j).YData = random_waypoint(2,j);
+    end
     
-    
-    %Update position of labels for followers
-    for q = 1:N-1
-        follower_labels{q}.Position = x(1:2, q+1) + [-0.15;0.15];    
+    %Update position of labels
+    font_size = determine_font_size(r, 0.05);
+    for j = 1:N
+        if any(j==L_states)
+            leader_labels(j).FontSize = font_size;
+            leader_labels(j).Position = x(1:2, j) + [-0.15;0.15];
+        else
+            follower_labels(j-Nl).FontSize = font_size;
+            follower_labels(j-Nl).Position = x(1:2, j) + [-0.15;0.15];  
+        end
     end
     
     % Connection lines showing if in visibility region
     for i = 1:N
         for j = 1:N
-            if i ~= j
-                % Polar coordinate conversion
-                radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
-                angle = atan2d(x(2,j) - x(2,i), x(1,j) - x(1,i));
-                angle_start = rad2deg((visibility_angle/2)+x(3,i));
-                angle_end = rad2deg((-visibility_angle/2)+x(3,i));
-                if radius < visibility_dist_meter && ...
-                   angle > angle_end && angle < angle_start
-                    connection_line(i,j).XData = [x(1,i), x(1,j)];
-                    connection_line(i,j).YData = [x(2,i), x(2,j)];
-                    connection_line(i,j).LineStyle = ':';
-                else
-                    connection_line(i,j).LineStyle = 'none';
-                end
+            if A(i,j) == 1
+                connection_line(i,j).XData = [x(1,i), x(1,j)];
+                connection_line(i,j).YData = [x(2,i), x(2,j)];
+                connection_line(i,j).LineStyle = ':';
+            else
+                connection_line(i,j).LineStyle = 'none';
             end
         end 
     end
-    
-    %Update position of label and graph connection for leader
-    leader_label.Position = x(1:2, 1) + [-0.15;0.15];
-    
-    % Resize Marker Sizes (In case user changes simulated figure window
-    % size, this is unnecessary in submission as the figure window 
-    % does not change size).
 
-    marker_size_robot = num2cell(ones(1,N)*determine_robot_marker_size(r,visibility_dist_meter));
-    [visibility_plot.MarkerSize] = marker_size_robot{:};
-    font_size = determine_font_size(r, 0.05);
-    leader_label.FontSize = font_size;
-    
+    % Visibility Plots
+    marker_size_robot = determine_robot_marker_size(r,visibility_dist_meter);
     for n = 1:N
+        % Resize Marker Sizes (In case user changes simulated figure window
+        % size, this is unnecessary in submission as the figure window 
+        % does not change size).
+        visibility_plot(n).MarkerSize = marker_size_robot;
+        
         % Circle plot position updates
         if strcmp(visibility_cur_type,'uniform')
             visibility_plot(n).XData = x(1,n);
@@ -294,11 +345,6 @@ for t = 1:iterations
                 [x(1,n)*ones(size(cur_vertices,1),1), x(2,n)*ones(size(cur_vertices,1),1)];
             visibility_plot(n).Vertices = cur_vertices;
         end
-
-        % Have to update font in loop for some conversion reasons.
-        % Again this is unnecessary when submitting as the figure
-        % window does not change size when deployed on the Robotarium.
-        follower_labels{n}.FontSize = font_size;
     end
     
     %Iterate experiment
