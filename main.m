@@ -24,15 +24,16 @@ Nl = 2;
 robot_diameter = 0.11;
 boundaries = [-1.6,1.6,-1,1];
 
-% These are gains for our formation control algorithm
-formation_control_gain = 5;
-desired_distance = 0.3;
-
 % Visibility
-visibility_dist_meter = 0.5;
+visibility_dist_meter = 0.75;
 visibility_line_width = 3;
 % Vision angle (only for non-uniform)
 visibility_angle = pi/3;
+
+% These are gains for our formation control algorithm
+formation_control_gain = 5;
+min_distance = robot_diameter;
+max_distance = visibility_dist_meter;
 
 % Leader
 leader_const_velocity = 0.2;
@@ -191,19 +192,23 @@ for t = 1:iterations
     
     %% Follower Controller
     
-%     for i = F_states
-%         
-%         %Zero velocity and get the topological neighbors of agent i
-%         dxi(:, i) = [0 ; 0];
-%         
-%         neighbors = topological_neighbors(L, i);
-%         
-%         for j = neighbors
-%             dxi(:, i) = dxi(:, i) + ...
-%                 formation_control_gain*(norm(x(1:2, j) - x(1:2, i))^2 -  desired_distance^2)*(x(1:2, j) - x(1:2, i));
-%         end
-%     end
-%     
+    for i = F_states
+        
+        %Zero velocity and get the topological neighbors of agent i
+        dxi(:, i) = [0 ; 0];
+        
+        if any(A(i,:))
+            for j = find(A(i,:)==1)
+                radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
+                wij = (1-min_distance/radius)/((max_distance-radius)^3);
+                dxi(:, i) = dxi(:, i) + wij*norm(x(1:2, j) - x(1:2, i));
+                    %formation_control_gain*(norm(x(1:2, j) - x(1:2, i))^2 -  desired_distance^2)*(x(1:2, j) - x(1:2, i));
+            end
+        else
+            dxi(:, i) = [0;0];
+        end
+    end
+    
     %% Leader Controller
     %% Make the leader travel between waypoints
     % TODO -- multiple leaders...state variable now array L_states
