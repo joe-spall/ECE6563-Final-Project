@@ -17,7 +17,7 @@ iterations = 5000;
 %Number of agents
 N = 6;
 %Number of leaders
-Nl = 3;
+Nl = 1;
 robot_diameter = 0.11;
 boundaries = [-1.6,1.6,-1,1];
 
@@ -25,7 +25,7 @@ boundaries = [-1.6,1.6,-1,1];
 visibility_dist_meter = 0.55;
 visibility_line_width = 3;
 % Vision angle (only for non-uniform)
-visibility_angle = 1/3*pi;
+visibility_angle = 2*pi;
 
 % These are gains for our formation control algorithm
 formation_control_gain = 5;
@@ -317,14 +317,39 @@ for t = 1:iterations
         visibility_plot(n).MarkerSize = marker_size_robot;
         
         % Wedge plot position updates
-        cur_vertices = visibility_plot(n).Vertices';
-        for v = 1:size(cur_vertices,2)
+        cur_vertices = visibility_plot(n).Vertices;
+        % Subtract to make center of robot origin
+
+%         cur_vertices(:,1:2) = cur_vertices(:,1:2) - ...
+%             [x(1,n)*ones(size(cur_vertices,1),1), x(2,n)*ones(size(cur_vertices,1),1)];
+%         % Get in homogenous coordinate form
+%         cur_vertices(:,3) = 1;
+%         d_pos = x(1:2,n)-old_pose(1:2,n);
+%         d_theta = x(3,n)-old_pose(3,n);
+%         homog = [cos(d_theta) -sin(d_theta) d_pos(1);
+%                 sin(d_theta)  cos(d_theta)  d_pos(2);
+%                 0             0             1];
+%         % Apply homogenous coordinate rot and translation
+%         for v = 1:size(cur_vertices,1)
+%             cur_vertices(v,:) = (homog*cur_vertices(v,:).').';
+%         end
+%         % Undo homogenous coordinate
+%         cur_vertices(:,3) = 0;
+%         % Add to make global coordinates
+%         cur_vertices(:,1:2) = cur_vertices(:,1:2) + ...
+%             [x(1,n)*ones(size(cur_vertices,1),1), x(2,n)*ones(size(cur_vertices,1),1)];
+        
+        for v = 1:size(cur_vertices,1)
             % Robot coordinates
-            cur_vertices(1:2,v) = global_to_robot(old_pose(:,n),cur_vertices(1:2,v));
-            % Move with robot and global coordinates
-            cur_vertices(1:2,v) = robot_to_global(x(:,n),cur_vertices(1:2,v));
+            cur_vertices(v,1:2) = global_to_robot(x(:,n),cur_vertices(v,1:2));
+            % Move with robot
+            d_pos = x(1:2,n)-old_pose(1:2,n);
+            d_theta = x(3,n)-old_pose(3,n);
+            cur_vertices(v,1:2) = coord_transform([d_pos;d_theta],cur_vertices(v,1:2));
+            % Global coordinates
+            cur_vertices(v,1:2) = robot_to_global(
         end
-        visibility_plot(n).Vertices = cur_vertices';
+        visibility_plot(n).Vertices = cur_vertices;
     end
     
     %Iterate experiment
@@ -349,6 +374,14 @@ function x_out = robot_to_global(x_robot, x_in)
     T = [cos(x_robot(3)),-sin(x_robot(3)),x_robot(1);
          sin(x_robot(3)),cos(x_robot(3)),x_robot(2);
          0              ,0              ,1];
+    x_new = T*[x_in;1];
+    x_out = x_new(1:2);
+end
+
+function x_out = coord_transform(xy_theta, x_in)
+    T = [cos(xy_theta(3)),-sin(xy_theta(3)),xy_theta(1);
+         sin(xy_theta(3)),cos(xy_theta(3)),xy_theta(2);
+         0               ,0               ,1];
     x_new = T*[x_in;1];
     x_out = x_new(1:2);
 end
