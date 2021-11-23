@@ -46,6 +46,7 @@ function [connected,num_iterations] = main(varargin)
     % 'weak' or 'strong'
     graph_connection = 'weak';
 
+
     % These are gains for our formation control algorithm
     formation_control_gain = 5;
     min_distance = robot_diameter;
@@ -290,28 +291,15 @@ function [connected,num_iterations] = main(varargin)
                 % does not change size).
                 visibility_plot(n).MarkerSize = marker_size_robot;
 
-                cur_vertices = visibility_plot(n).Vertices;
-                % Subtract to make center of robot origin
-
-                cur_vertices(:,1:2) = cur_vertices(:,1:2) - ...
-                    [x(1,n)*ones(size(cur_vertices,1),1), x(2,n)*ones(size(cur_vertices,1),1)];
-                % Get in homogenous coordinate form
-                cur_vertices(:,3) = 1;
-                d_pos = x(1:2,n)-old_pose(1:2,n);
-                d_theta = x(3,n)-old_pose(3,n);
-                homog = [cos(d_theta) -sin(d_theta) d_pos(1);
-                        sin(d_theta)  cos(d_theta)  d_pos(2);
-                        0             0             1];
-                % Apply homogenous coordinate rot and translation
-                for v = 1:size(cur_vertices,1)
-                    cur_vertices(v,:) = (homog*cur_vertices(v,:).').';
+                % Wedge plot position updates
+                cur_vertices = visibility_plot(n).Vertices';
+                for v = 1:size(cur_vertices,2)
+                    % Robot coordinates
+                    cur_vertices(1:2,v) = global_to_robot(old_pose(:,n),cur_vertices(1:2,v));
+                    % Move with robot and global coordinates
+                    cur_vertices(1:2,v) = robot_to_global(x(:,n),cur_vertices(1:2,v));
                 end
-                % Undo homogenous coordinate
-                cur_vertices(:,3) = 0;
-                % Add to make global coordinates
-                cur_vertices(:,1:2) = cur_vertices(:,1:2) + ...
-                    [x(1,n)*ones(size(cur_vertices,1),1), x(2,n)*ones(size(cur_vertices,1),1)];
-                visibility_plot(n).Vertices = cur_vertices;
+                visibility_plot(n).Vertices = cur_vertices';
             end
         end
 
@@ -322,11 +310,10 @@ function [connected,num_iterations] = main(varargin)
             break;
         end
 
-
         % Iterate experiment
         r.step();
     end
-
+   
     % We can call this function to debug our experiment!  Fix all the errors
     % before submitting to maximize the chance that your experiment runs
     % successfully.
@@ -342,21 +329,22 @@ function A = get_adjacency(x, viz_angle, viz_dist)
     A = zeros(N);
     for i = 1:N
         for j = 1:N
-        	if i ~= j
-            	% Polar coordinate conversion
-                radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
-                angle = atan2(x(2,j) - x(2,i), x(1,j) - x(1,i));
-                angle_start = (viz_angle/2)+x(3,i);
-                angle_end = (-viz_angle/2)+x(3,i);
-                if radius < viz_dist && ...
-                        angle > angle_end && angle < angle_start
-                    A(i,j) = 1;
+            if i ~= j
+                % Polar coordinate conversion
+                x_j = global_to_robot(x(:,i),x(1:2,j));
+                radius = norm(x_j);
+                if radius <= visibility_dist_meter
+                    angle = atan2(x_j(2),x_j(1));
+                    angle_start = visibility_angle/2;
+                    angle_end = -visibility_angle/2;
+                    if angle >= angle_end && angle <= angle_start
+                        A(i,j) = 1;
+                    end
                 end
             end
         end 
     end
 end
-
 
 function status = determine_connected(A, connection_type)
     cur_graph = digraph(A);
@@ -369,6 +357,29 @@ function status = determine_connected(A, connection_type)
     end
 end
 
+%% Helper Functions
+function x_out = global_to_robot(x_robot, x_in)
+    T = [cos(x_robot(3)),-sin(x_robot(3)),x_robot(1);
+         sin(x_robot(3)),cos(x_robot(3)),x_robot(2);
+         0              ,0              ,1];
+    x_new = T\[x_in;1];
+    x_out = x_new(1:2);
+end
+
+function x_out = robot_to_global(x_robot, x_in)
+    T = [cos(x_robot(3)),-sin(x_robot(3)),x_robot(1);
+         sin(x_robot(3)),cos(x_robot(3)),x_robot(2);
+         0              ,0              ,1];
+    x_new = T*[x_in;1];
+    x_out = x_new(1:2);
+end
+
+function [x_out, y_out] = norm_coord(x, y, axes, xlims, ylims)
+    x_out = ((x-xlims(1))/(xlims(2) - xlims(1)))*axes(3);
+    y_out = ((y-ylims(1))/(ylims(2) - ylims(1)))*axes(4);
+    x_out = axes(1) + x_out;
+    y_out = axes(2) + y_out;
+end       
 
 % Marker Size Helper Function to scale size with figure window
 % Input: robotarium instance, desired size of the marker in meters
