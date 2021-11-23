@@ -49,7 +49,7 @@ function [connected,num_iterations] = main(varargin)
 
     % These are gains for our formation control algorithm
     formation_control_gain = 5;
-    min_distance = robot_diameter;
+    min_distance = robot_diameter+0.2;
     max_distance = visibility_dist;
 
     % Leader
@@ -64,7 +64,7 @@ function [connected,num_iterations] = main(varargin)
     % Initial Conditions
     initial_conditions = parser.Results.InitialConditions;    
     if(isempty(initial_conditions))
-        initial_conditions = generate_initial_conditions(N,'Spacing', 0.5);
+        initial_conditions = generate_initial_conditions(N,'Spacing', visibility_dist+0.1);
     end
     
     % Set up the Robotarium object
@@ -194,7 +194,7 @@ function [connected,num_iterations] = main(varargin)
                 for j = find(A(i,:)==1)
                     radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
                     wij = (1-min_distance/radius)/((max_distance-radius)^3);
-                    dxi(:, i) = dxi(:, i) + wij*norm(x(1:2, j) - x(1:2, i));
+                    dxi(:, i) = dxi(:, i) + wij*(x(1:2, j) - x(1:2, i));
                         %formation_control_gain*(norm(x(1:2, j) - x(1:2, i))^2 -  desired_distance^2)*(x(1:2, j) - x(1:2, i));
                 end
             else
@@ -236,7 +236,6 @@ function [connected,num_iterations] = main(varargin)
         norms = arrayfun(@(x) norm(dxi(:, x)), 1:N);
         threshold = 3/4*r.max_linear_velocity;
         to_thresh = norms > threshold;
-        to_thresh(1) = 0;
         dxi(:, to_thresh) = threshold*dxi(:, to_thresh)./norms(to_thresh);
 
         % Use barrier certificate and convert to unicycle dynamics
@@ -333,10 +332,10 @@ function A = get_adjacency(x, viz_angle, viz_dist)
                 % Polar coordinate conversion
                 x_j = global_to_robot(x(:,i),x(1:2,j));
                 radius = norm(x_j);
-                if radius <= visibility_dist_meter
+                if radius <= viz_dist
                     angle = atan2(x_j(2),x_j(1));
-                    angle_start = visibility_angle/2;
-                    angle_end = -visibility_angle/2;
+                    angle_start = viz_angle/2;
+                    angle_end = -viz_angle/2;
                     if angle >= angle_end && angle <= angle_start
                         A(i,j) = 1;
                     end
@@ -357,7 +356,6 @@ function status = determine_connected(A, connection_type)
     end
 end
 
-%% Helper Functions
 function x_out = global_to_robot(x_robot, x_in)
     T = [cos(x_robot(3)),-sin(x_robot(3)),x_robot(1);
          sin(x_robot(3)),cos(x_robot(3)),x_robot(2);
