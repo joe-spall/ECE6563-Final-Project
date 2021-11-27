@@ -49,7 +49,7 @@ function [connected,num_iterations] = main(varargin)
 
     % These are gains for our formation control algorithm
     formation_control_gain = 5;
-    min_distance = robot_diameter+0.2;
+    min_distance = robot_diameter+0.1;
     max_distance = visibility_dist-0.1;
 
     % Leader
@@ -258,14 +258,10 @@ function [connected,num_iterations] = main(varargin)
                     if m ~= n
                         i = current_line(n);
                         j = current_line(m);
- 
+                
                         radius = norm(x(1:2,i) - x(1:2,j));
-                        % Difference in index matches graph linear distance
-                        w_line = gain*abs(n-m);
-                        %wij = (1-min_distance/radius)/((max_distance-radius)^3);
-                        
-                        dxi(:, i) = dxi(:, i) + 2*(radius^2 - w_line^2) ... 
-                            *(x(1:2, i) - x(1:2, j));
+                        wij = (1-min_distance/radius)/((max_distance-radius)^3);
+                        dxi(:, i) = dxi(:, i) + wij*(x(1:2, j) - x(1:2, i));
                     end
                 end
             end
