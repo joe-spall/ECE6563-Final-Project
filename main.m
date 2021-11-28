@@ -53,7 +53,7 @@ function [connected,num_iterations] = main(varargin)
     max_distance = visibility_dist-0.1;
 
     % Leader
-    leader_waypoint_dist = 0.05;
+    leader_waypoint_dist = 0.1;
     leader_color = 'r';
 
     % Follower
@@ -184,17 +184,9 @@ function [connected,num_iterations] = main(varargin)
         A = get_adjacency(x, visibility_angle, visibility_dist);
 
         %% Follower Controller
-        
-        %% States
-        % 1 - idle
-        % 2 - back of line
-        % 3 - follow in line
-        % 4 - wait for back of line
-        
-        
-        % Line and State Machine Init
+                
+        % Line Init
         if t == 1
-            f_state_machine = ones(1, size(F_states,2));
             
             % Init cell size, line for each leader
             control_lines = cell(1,size(L_states,2));
@@ -214,7 +206,7 @@ function [connected,num_iterations] = main(varargin)
                 % Add to line if 
                 % 1. they aren't the same element
                 % 2. they are in the vision of each other
-                % 3. they aren't in the list
+                % 3. they aren't in the current list
                 if all(line_end_x1 ~= x2) && ...
                     are_points_connected(line_end_x1, x2, ...
                     visibility_angle, visibility_dist) && ...
@@ -224,7 +216,6 @@ function [connected,num_iterations] = main(varargin)
                 
                     control_lines{line_list_index} = ...
                         [control_lines{line_list_index} index_x2];
-                    f_state_machine(index_x2 - N_L) = 2;
                 end
             end
         end
@@ -239,9 +230,10 @@ function [connected,num_iterations] = main(varargin)
                 xj = x(:,current_line(m));
                 if ~are_points_connected(xi, xj, ...
                     visibility_angle, visibility_dist)
-                
-                    control_lines{line_list_index} = current_line(1:end-1);
-                
+                    % Removes disconnected element to the end
+                    current_line(m:end) = [];
+                    control_lines{line_list_index} = current_line;
+                    break;
                 end
                 
             end
@@ -249,25 +241,64 @@ function [connected,num_iterations] = main(varargin)
         end
         
         gain = 0.5;
-        % TODO Adjacency line graphs
         for line_list_index = L_states
             current_line = control_lines{line_list_index};
-            
-            for n = 1:size(current_line,2)
-                for m = 1:size(current_line,2)
-                    if m ~= n
-                        i = current_line(n);
-                        j = current_line(m);
- 
-                        radius = norm(x(1:2,i) - x(1:2,j));
-                        % Difference in index matches graph linear distance
-                        w_line = gain*abs(n-m);
-                        %wij = (1-min_distance/radius)/((max_distance-radius)^3);
-                        
-                        dxi(:, i) = dxi(:, i) + 2*(radius^2 - w_line^2) ... 
-                            *(x(1:2, i) - x(1:2, j));
-                    end
+            if size(current_line,2) > 1
+                % Adjacent line formation from behind
+                for n = size(current_line,2):-1:2
+                    m = n-1;
+                    i = current_line(n);
+                    j = current_line(m);
+
+                    radius = norm(x(1:2,i) - x(1:2,j));
+                    % Difference in index matches graph linear distance
+                    w_full_line = gain*abs(n-m);
+                    add_full_line = 2*(radius^2 - w_full_line^2) ... 
+                        *(x(1:2, i) - x(1:2, j));
+
+                    dxi(:, i) = dxi(:, i) + add_full_line;
+
+
                 end
+            
+            
+            
+%             % Full line formation            
+%             for n = 1:size(current_line,2)
+%                 for m = 1:size(current_line,2)
+%                     if m ~= n
+%                         i = current_line(n);
+%                         j = current_line(m);
+%  
+%                         radius = norm(x(1:2,i) - x(1:2,j));
+%                         % Difference in index matches graph linear distance
+%                         w_full_line = gain*abs(n-m);
+%                         add_full_line = 2*(radius^2 - w_full_line^2) ... 
+%                             *(x(1:2, i) - x(1:2, j));
+%                         %wij = (1-min_distance/radius)/((max_distance-radius)^3);
+%                         
+%                         dxi(:, i) = dxi(:, i) + add_full_line;
+%                     end
+%                 end
+%             end
+                
+                
+            end
+            
+        end
+        
+        % Set to zero velocity if not in the line
+        for i = F_states
+            in_line = false;
+            for line_list_index = L_states
+                current_line = control_lines{line_list_index};
+                if any(current_line)
+                    in_line = true;
+                end
+            end
+            
+            if ~in_line
+                dxi(:, i) = [0;0];
             end
         end
         
@@ -406,8 +437,8 @@ function [connected,num_iterations] = main(varargin)
     robo_debug = parser.Results.RoboDebug;
     if robo_debug
         r.debug();
-    end
-end
+    end   
+ end
 
 %% Helper Functions
 function status = are_points_connected(x1,x2, viz_angle, viz_dist)

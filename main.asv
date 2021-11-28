@@ -6,11 +6,13 @@
 % Sean Wilson and Joseph Spall
 % 07/2019
 
-function [connected,num_iterations] = main(varargin) 
+%% TODO UNDO COMMENT
+varargin = {};
+%function [connected,num_iterations] = main(varargin) 
     %% Input Parsing
     parser = inputParser;
             
-    addParameter(parser,'NumberOfRobots', 2);
+    addParameter(parser,'NumberOfRobots', 6);
     addParameter(parser,'NumberOfLeaders', 1);
     addParameter(parser,'MaxIterations',5000);
     addParameter(parser,'VisibilityAngle', 2*pi);
@@ -49,7 +51,7 @@ function [connected,num_iterations] = main(varargin)
 
     % These are gains for our formation control algorithm
     formation_control_gain = 5;
-    min_distance = robot_diameter+0.1;
+    min_distance = robot_diameter+0.2;
     max_distance = visibility_dist-0.1;
 
     % Leader
@@ -239,9 +241,9 @@ function [connected,num_iterations] = main(varargin)
                 xj = x(:,current_line(m));
                 if ~are_points_connected(xi, xj, ...
                     visibility_angle, visibility_dist)
-                
-                    control_lines{line_list_index} = current_line(1:end-1);
-                
+                    % Removes disconnected element
+                    current_line(n:m) = [];
+                    control_lines{line_list_index} = current_line;
                 end
                 
             end
@@ -258,12 +260,31 @@ function [connected,num_iterations] = main(varargin)
                     if m ~= n
                         i = current_line(n);
                         j = current_line(m);
-                
+ 
                         radius = norm(x(1:2,i) - x(1:2,j));
-                        wij = (1-min_distance/radius)/((max_distance-radius)^3);
-                        dxi(:, i) = dxi(:, i) + wij*(x(1:2, j) - x(1:2, i));
+                        % Difference in index matches graph linear distance
+                        w_line = gain*abs(n-m);
+                        %wij = (1-min_distance/radius)/((max_distance-radius)^3);
+                        
+%                         dxi(:, i) = dxi(:, i) + 2*(radius^2 - w_line^2) ... 
+%                             *(x(1:2, i) - x(1:2, j));
                     end
                 end
+            end
+        end
+        
+        % Set to zero velocity if not in the line
+        for i = F_states
+            in_line = false;
+            for line_list_index = L_states
+                current_line = control_lines{line_list_index};
+                if any(current_line)
+                    in_line = true;
+                end
+            end
+            
+            if ~in_line
+                dxi(:, i) = [0;0];
             end
         end
         
@@ -403,7 +424,8 @@ function [connected,num_iterations] = main(varargin)
     if robo_debug
         r.debug();
     end
-end
+ %% TODO UNDO COMMENT   
+ %end
 
 %% Helper Functions
 function status = are_points_connected(x1,x2, viz_angle, viz_dist)
