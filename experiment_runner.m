@@ -2,9 +2,9 @@ clear;close all;clc
 init
 
 
-num_robots = 7:10;
+num_robots = 2:10;
 num_leaders = 2;
-num_loops = 100;
+num_loops = 50;
 max_iterations = 5000;
 iterations = NaN(size(num_robots,2),num_loops);
 
