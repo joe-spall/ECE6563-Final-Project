@@ -204,16 +204,12 @@ function [connected,num_iterations] = main(varargin)
             for index_x2 = F_states
                 x2 = x(:,index_x2);
                 % Add to line if 
-                % 1. they aren't the same element
-                % 2. they are in the vision of each other
-                % 3. they aren't in the current list
-                if all(line_end_x1 ~= x2) && ...
-                    are_points_connected(line_end_x1, x2, ...
+                % 1. they are in the vision of each other
+                % 2. they aren't in the current list
+                if  are_points_connected(line_end_x1, x2, ...
                     visibility_angle, visibility_dist) && ...
                     ~any(current_line == index_x2)
-                
-
-                
+ 
                     control_lines{line_list_index} = ...
                         [control_lines{line_list_index} index_x2];
                 end
@@ -243,48 +239,19 @@ function [connected,num_iterations] = main(varargin)
         gain = 0.5;
         for line_list_index = L_states
             current_line = control_lines{line_list_index};
-            if size(current_line,2) > 1
-                % Adjacent line formation from behind
-                for n = size(current_line,2):-1:2
-                    m = n-1;
-                    i = current_line(n);
-                    j = current_line(m);
+            % Adjacent line formation from behind
+            for n = size(current_line,2):-1:2
+                m = n-1;
+                i = current_line(n);
+                j = current_line(m);
 
-                    radius = norm(x(1:2,i) - x(1:2,j));
-                    % Difference in index matches graph linear distance
-                    w_full_line = gain*abs(n-m);
-                    add_full_line = 2*(radius^2 - w_full_line^2) ... 
-                        *(x(1:2, i) - x(1:2, j));
+                radius = norm(x(1:2,i) - x(1:2,j));
+                % Difference in index matches graph linear distance
+                add_full_line = 2*(radius^2 - gain^2) ... 
+                    *(x(1:2, i) - x(1:2, j));
 
-                    dxi(:, i) = dxi(:, i) + add_full_line;
-
-
-                end
-            
-            
-            
-%             % Full line formation            
-%             for n = 1:size(current_line,2)
-%                 for m = 1:size(current_line,2)
-%                     if m ~= n
-%                         i = current_line(n);
-%                         j = current_line(m);
-%  
-%                         radius = norm(x(1:2,i) - x(1:2,j));
-%                         % Difference in index matches graph linear distance
-%                         w_full_line = gain*abs(n-m);
-%                         add_full_line = 2*(radius^2 - w_full_line^2) ... 
-%                             *(x(1:2, i) - x(1:2, j));
-%                         %wij = (1-min_distance/radius)/((max_distance-radius)^3);
-%                         
-%                         dxi(:, i) = dxi(:, i) + add_full_line;
-%                     end
-%                 end
-%             end
-                
-                
-            end
-            
+                dxi(:, i) = dxi(:, i) + add_full_line;
+            end                 
         end
         
         % Set to zero velocity if not in the line
@@ -302,23 +269,6 @@ function [connected,num_iterations] = main(varargin)
             end
         end
         
-        
-            
-%         for i = F_states
-%             %Zero velocity and get the topological neighbors of agent i
-%             dxi(:, i) = [0 ; 0];
-% 
-%             if any(A(i,:))
-%                 for j = find(A(i,:)==1)
-%                     radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
-%                     wij = (1-min_distance/radius)/((max_distance-radius)^3);
-%                     dxi(:, i) = dxi(:, i) + wij*(x(1:2, j) - x(1:2, i));
-%                         %formation_control_gain*(norm(x(1:2, j) - x(1:2, i))^2 -  desired_distance^2)*(x(1:2, j) - x(1:2, i));
-%                 end
-%             else
-%                 dxi(:, i) = [0;0];
-%             end
-%         end
 
         %% Leader Controller
         

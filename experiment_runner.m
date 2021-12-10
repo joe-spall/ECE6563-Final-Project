@@ -1,8 +1,8 @@
 clear;close all;clc
 init
 
-num_robots = 2:10;
-num_leaders = 1;
+num_robots = 7:10;
+num_leaders = 2;
 num_loops = 100;
 max_iterations = 5000;
 iterations = NaN(size(num_robots,2),num_loops);
@@ -21,7 +21,7 @@ for n = 1:size(num_robots,2)
                                           'MaxIterations',max_iterations,   ...
                                           'VisibilityAngle',2*pi, ...
                                           'VisibilityDist', 0.5,  ...
-                                          'ShowFigure', false,    ...
+                                          'ShowFigure', true,    ...
                                           'InitialConditions', [], ...
                                           'RoboDebug', false); 
 
