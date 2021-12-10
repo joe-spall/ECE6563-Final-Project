@@ -6,7 +6,7 @@
 % Sean Wilson, Joseph Spall, and Juan Elizondo
 % 07/2019
 
-function [connected,num_iterations] = main(varargin) 
+function [connected,num_iterations] = main_flock_formation(varargin) 
     %% Input Parsing
     parser = inputParser;
             
@@ -15,7 +15,6 @@ function [connected,num_iterations] = main(varargin)
     addParameter(parser,'MaxIterations',5000);
     addParameter(parser,'VisibilityAngle', 2*pi);
     addParameter(parser,'VisibilityDist', 0.5);
-    addParameter(parser,'LineFormationAngle', pi/2);
     addParameter(parser,'ShowFigure', true);
     addParameter(parser,'InitialConditions', []);
     addParameter(parser,'RoboDebug', false);
