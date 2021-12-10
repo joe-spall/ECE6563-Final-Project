@@ -6,7 +6,7 @@
 % Sean Wilson and Joseph Spall
 % 07/2019
 
-function [connected,num_iterations] = main(varargin) 
+function [connected,num_iterations] = main_line_w_leader_front(varargin) 
     %% Input Parsing
     parser = inputParser;
             
