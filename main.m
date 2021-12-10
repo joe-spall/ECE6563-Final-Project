@@ -91,7 +91,7 @@ function [connected,num_iterations] = main(varargin)
     % Single-integrator barrier certificates
     uni_barrier_cert = create_uni_barrier_certificate_with_boundary('BoundaryPoints',r.boundaries);
     % Single-integrator position controller
-    leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.8);
+    leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.09);
 
     %% Plotting Setup
     if show_figure
