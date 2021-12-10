@@ -6,7 +6,7 @@
 % Sean Wilson, Joseph Spall, and Juan Elizondo
 % 07/2019
 
-function [connected,num_iterations] = main(varargin) 
+function [connected,num_iterations] = main_line_angle_formation(varargin) 
     %% Input Parsing
     parser = inputParser;
             
@@ -15,7 +15,6 @@ function [connected,num_iterations] = main(varargin)
     addParameter(parser,'MaxIterations',5000);
     addParameter(parser,'VisibilityAngle', 2*pi);
     addParameter(parser,'VisibilityDist', 0.5);
-    addParameter(parser,'LineFormationAngle', pi/2);
     addParameter(parser,'ShowFigure', true);
     addParameter(parser,'InitialConditions', []);
     addParameter(parser,'RoboDebug', false);
@@ -49,9 +48,9 @@ function [connected,num_iterations] = main(varargin)
 
 
     % These are gains for our formation control algorithm
-    min_distance = 1.6*robot_diameter;
-    max_distance = 0.9*(visibility_dist-min_distance);
-    line_angle = parser.Results.LineFormationAngle;
+    min_distance = 1.2*robot_diameter;
+    max_distance = 0.8*(visibility_dist-min_distance);
+    line_angle = 2*pi/3;
 
     % Leader
     leader_waypoint_dist = robot_diameter;
@@ -89,9 +88,9 @@ function [connected,num_iterations] = main(varargin)
     % Single-integrator -> unicycle dynamics mapping
     si_to_uni_dyn = create_si_to_uni_dynamics('LinearVelocityGain', 0.8);
     % Single-integrator barrier certificates
-    uni_barrier_cert = create_uni_barrier_certificate_with_boundary();
+    uni_barrier_cert = create_uni_barrier_certificate_with_boundary('BoundaryPoints',r.boundaries);
     % Single-integrator position controller
-    leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.8);
+    leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.09);
 
     %% Plotting Setup
     if show_figure
@@ -184,6 +183,8 @@ function [connected,num_iterations] = main(varargin)
 
         followed_leaders = zeros(N_L,2);
         following_leaders = zeros(N,1);
+        following_leaders(L_states) = 1;
+        targets = zeros(N,1);
         for i = F_states
 
             %Zero velocity and get the topological neighbors of agent i
@@ -191,51 +192,53 @@ function [connected,num_iterations] = main(varargin)
 
             if any(A(i,:))
                 neighbors = find(A(i,:)==1);
-                target = neighbors(find(following_leaders(neighbors)));
+                if any(following_leaders(neighbors))
+                    [~,~,targets(i)] = find(following_leaders(neighbors),1);
+                    followed_leaders(targets(i),mod(i,2)+1) = 1;
+                    following_leaders(i) = 1;
+                else
+                    targets(i) = neighbors(1);
+                end
                 for j = neighbors
                     if any(j==L_states)
                         if (followed_leaders(j,mod(i,2)+1)==0)
-                            target = j;
+                            targets(i) = j;
                             followed_leaders(j,mod(i,2)+1) = 1;
                             following_leaders(i) = 1;
                             break;
                         end
-                    elseif (mod(i,2)==mod(j,2))
+                    else
                         if following_leaders(j)==1
                             if ((i - j) > 0)
-                                if ((i - j) < (i - target))
-                                    target = j;
+                                if ((i - j) < (i - targets(i)))
+                                    targets(i) = j;
                                     following_leaders(i) = 1;
                                 end
-                            elseif ((i - target) > 0) && ((i - j) < 0)
+                            elseif ((i - targets(i)) > 0) && ((i - j) < 0)
                                 break;
                             else
-                                if ((j - i) < (target - i))
-                                    target = j;
+                                if ((j - i) < (targets(i) - i))
+                                    targets(i) = j;
                                     following_leaders(i) = 1;
                                 end
                             end
                         end
                     end
                 end
-                if mod(i,2)==0
-                    x_p = [min_distance*cos(line_angle);min_distance*sin(line_angle)];
-                else
-                    x_p = [min_distance*cos(-line_angle);min_distance*sin(-line_angle)];
-                end
-                x_p_g = robot_to_global(x(:,target),x_p);
+                x_p = [min_distance*cos(line_angle);min_distance*sin(line_angle)];
+                x_p_g = robot_to_global(x(:,targets(i)),x_p);
                 radius = norm([x(1,i), x(2,i)] - [x_p_g(1), x_p_g(2)]);
-                if radius < max_distance
-                    %wij = (1-min_distance/radius)/((max_distance-radius)^3);
+                if radius < 0.95*max_distance
                     wij = 1/((max_distance-radius)^3);
-                    dxi(:, i) = dxi(:, i) + wij*(x_p_g - x(1:2, i));
+                    dxi(:, i) = dxi(:, i) + 10*wij*(x_p_g - x(1:2, i));
                 else
-                    dxi(:, i) = dxi(:, i) + (x_p_g - x(1:2, i));
+                    dxi(:, i) = dxi(:, i) + 10*(x_p_g - x(1:2, i));
                 end
             else
                 dxi(:, i) = [0;0];
             end
         end
+
 
         %% Leader Controller
         
