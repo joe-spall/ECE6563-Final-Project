@@ -1,6 +1,7 @@
 clear;close all;clc
 init
 
+
 num_robots = 2:10;
 num_leaders = 2;
 num_loops = 50;
@@ -16,12 +17,12 @@ for n = 1:size(num_robots,2)
     fprintf('Running %d tests \n', num_loops);
     parfor i = 1:num_loops
         %fprintf('Running #%d ',i);
-        [connected,num_iterations] = main('NumberOfRobots',a,     ...
+        [connected,num_iterations] = main_line_w_leader_front('NumberOfRobots',a,     ...
                                           'NumberOfLeaders',num_leaders,    ...
                                           'MaxIterations',max_iterations,   ...
                                           'VisibilityAngle',2*pi, ...
                                           'VisibilityDist', 0.5,  ...
-                                          'ShowFigure', false,    ...
+                                          'ShowFigure', true,    ...
                                           'InitialConditions', [], ...
                                           'RoboDebug', false); 
 
@@ -33,7 +34,6 @@ for n = 1:size(num_robots,2)
         else
             %fprintf('Fail! \n');
         end
-
     end
     iterations(iterations == max_iterations) = NaN;
     
