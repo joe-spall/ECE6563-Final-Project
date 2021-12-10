@@ -6,7 +6,7 @@
 % Sean Wilson and Joseph Spall
 % 07/2019
 
-function [connected,num_iterations] = main(varargin) 
+function [connected,num_iterations] = main_min_max_dist_repel(varargin) 
     %% Input Parsing
     parser = inputParser;
             
