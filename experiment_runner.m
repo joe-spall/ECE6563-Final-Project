@@ -1,6 +1,7 @@
 clear;close all;clc
 init
 
+
 num_robots = 7:10;
 num_leaders = 2;
 num_loops = 100;
@@ -33,7 +34,6 @@ for n = 1:size(num_robots,2)
         else
             %fprintf('Fail! \n');
         end
-
     end
     iterations(iterations == max_iterations) = NaN;
     
