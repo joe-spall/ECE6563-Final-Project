@@ -6,7 +6,7 @@
 % Sean Wilson, Joseph Spall, and Juan Elizondo
 % 07/2019
 
-function [connected,num_iterations] = main(varargin) 
+function [connected,num_iterations] = main_line_angle_formation(varargin) 
     %% Input Parsing
     parser = inputParser;
             
@@ -15,7 +15,6 @@ function [connected,num_iterations] = main(varargin)
     addParameter(parser,'MaxIterations',5000);
     addParameter(parser,'VisibilityAngle', 2*pi);
     addParameter(parser,'VisibilityDist', 0.5);
-    addParameter(parser,'LineFormationAngle', pi/2);
     addParameter(parser,'ShowFigure', true);
     addParameter(parser,'InitialConditions', []);
     addParameter(parser,'RoboDebug', false);
@@ -51,7 +50,7 @@ function [connected,num_iterations] = main(varargin)
     % These are gains for our formation control algorithm
     min_distance = 1.2*robot_diameter;
     max_distance = 0.8*(visibility_dist-min_distance);
-    line_angle = parser.Results.LineFormationAngle;
+    line_angle = 2*pi/3;
 
     % Leader
     leader_waypoint_dist = robot_diameter;
