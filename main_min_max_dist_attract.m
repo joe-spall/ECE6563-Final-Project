@@ -6,7 +6,7 @@
 % Sean Wilson, Joseph Spall, Juan Elizondo
 % 07/2019
 
-function [connected,num_iterations] = main_min_max_dist_repel(varargin) 
+function [connected,num_iterations] = main_min_max_dist_attract(varargin) 
     %% Input Parsing
     parser = inputParser;
             
@@ -189,7 +189,7 @@ function [connected,num_iterations] = main_min_max_dist_repel(varargin)
                 for j = find(A(i,:)==1)
                     radius = norm([x(1,i), x(2,i)] - [x(1,j), x(2,j)]);
                     wij = (1-min_distance/radius)/((max_distance-radius)^3);
-                    dxi(:, i) = dxi(:, i) + wij*(x(1:2, j) - x(1:2, i));
+                    dxi(:, i) = dxi(:, i) + wij*(x(1:2, i) - x(1:2, j));
                 end
             else
                 dxi(:, i) = [0;0];
