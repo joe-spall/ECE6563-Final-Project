@@ -90,7 +90,7 @@ function [connected,num_iterations] = main_line_angle_formation(varargin)
     % Single-integrator barrier certificates
     uni_barrier_cert = create_uni_barrier_certificate_with_boundary('BoundaryPoints',r.boundaries);
     % Single-integrator position controller
-    leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.09);
+    leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.08);
 
     %% Plotting Setup
     if show_figure
@@ -361,23 +361,29 @@ function [connected,num_iterations] = main_line_angle_formation(varargin)
 end
 
 %% Helper Functions
+function status = are_points_connected(x1,x2, viz_angle, viz_dist)
+    status = 0;
+    % Polar coordinate conversion
+    x_j = global_to_robot(x1,x2(1:2));
+    radius = norm(x_j);
+    if radius <= viz_dist
+        angle = atan2(x_j(2),x_j(1));
+        angle_start = viz_angle/2;
+        angle_end = -viz_angle/2;
+        if angle >= angle_end && angle <= angle_start
+            status = 1;
+        end
+    end
+    
+end
+
 function A = get_adjacency(x, viz_angle, viz_dist)
     N = size(x,2);
     A = zeros(N);
     for i = 1:N
         for j = 1:N
             if i ~= j
-                % Polar coordinate conversion
-                x_j = global_to_robot(x(:,i),x(1:2,j));
-                radius = norm(x_j);
-                if radius <= viz_dist
-                    angle = atan2(x_j(2),x_j(1));
-                    angle_start = viz_angle/2;
-                    angle_end = -viz_angle/2;
-                    if angle >= angle_end && angle <= angle_start
-                        A(i,j) = 1;
-                    end
-                end
+                A(i,j) = are_points_connected(x(:,i),x(:,j),viz_angle,viz_dist);
             end
         end 
     end
@@ -409,13 +415,6 @@ function x_out = robot_to_global(x_robot, x_in)
     x_new = T*[x_in;1];
     x_out = x_new(1:2);
 end
-
-% function [x_out, y_out] = norm_coord(x, y, axes, xlims, ylims)
-%     x_out = ((x-xlims(1))/(xlims(2) - xlims(1)))*axes(3);
-%     y_out = ((y-ylims(1))/(ylims(2) - ylims(1)))*axes(4);
-%     x_out = axes(1) + x_out;
-%     y_out = axes(2) + y_out;
-% end       
 
 % Marker Size Helper Function to scale size with figure window
 % Input: robotarium instance, desired size of the marker in meters

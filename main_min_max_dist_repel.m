@@ -3,7 +3,7 @@
 % In this experiment edges between robots will be plotted as well as robot
 % labels and leader goal locations.
 
-% Sean Wilson and Joseph Spall
+% Sean Wilson, Joseph Spall, Juan Elizondo
 % 07/2019
 
 function [connected,num_iterations] = main_min_max_dist_repel(varargin) 
@@ -48,12 +48,11 @@ function [connected,num_iterations] = main_min_max_dist_repel(varargin)
 
 
     % These are gains for our formation control algorithm
-    formation_control_gain = 5;
-    min_distance = robot_diameter+0.2;
-    max_distance = visibility_dist-0.1;
+    min_distance = 1.2*robot_diameter;
+    max_distance = 0.8*visibility_dist;
 
     % Leader
-    leader_waypoint_dist = 0.1;
+    leader_waypoint_dist = robot_diameter;
     leader_color = 'r';
 
     % Follower
@@ -77,8 +76,6 @@ function [connected,num_iterations] = main_min_max_dist_repel(varargin)
     % Initialize velocity vector
     dxi = zeros(2, N);
 
-    % Tracks previous theta for rotation tracking
-    old_theta = zeros(1,N);
 
     % States
     L_states = 1:N_L; %Leaders
@@ -91,7 +88,7 @@ function [connected,num_iterations] = main_min_max_dist_repel(varargin)
     % Single-integrator -> unicycle dynamics mapping
     si_to_uni_dyn = create_si_to_uni_dynamics('LinearVelocityGain', 0.8);
     % Single-integrator barrier certificates
-    uni_barrier_cert = create_uni_barrier_certificate_with_boundary();
+    uni_barrier_cert = create_uni_barrier_certificate_with_boundary('BoundaryPoints',r.boundaries);
     % Single-integrator position controller
     leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.08);
 
@@ -116,7 +113,6 @@ function [connected,num_iterations] = main_min_max_dist_repel(varargin)
         visibility_plot = gobjects(1,N);
     
         % Marker, font, and line sizes
-        marker_size_robot = determine_robot_marker_size(r,visibility_dist);
         marker_size_goal = determine_marker_size(r, 0.2);
         font_size = determine_font_size(r, 0.05);
         line_width = 3;
@@ -316,9 +312,9 @@ function [connected,num_iterations] = main_min_max_dist_repel(varargin)
     % successfully.
     robo_debug = parser.Results.RoboDebug;
     if robo_debug
-        r.debug();
-    end   
- end
+    	r.debug();
+    end
+end
 
 %% Helper Functions
 function status = are_points_connected(x1,x2, viz_angle, viz_dist)
@@ -375,13 +371,6 @@ function x_out = robot_to_global(x_robot, x_in)
     x_new = T*[x_in;1];
     x_out = x_new(1:2);
 end
-
-function [x_out, y_out] = norm_coord(x, y, axes, xlims, ylims)
-    x_out = ((x-xlims(1))/(xlims(2) - xlims(1)))*axes(3);
-    y_out = ((y-ylims(1))/(ylims(2) - ylims(1)))*axes(4);
-    x_out = axes(1) + x_out;
-    y_out = axes(2) + y_out;
-end       
 
 % Marker Size Helper Function to scale size with figure window
 % Input: robotarium instance, desired size of the marker in meters

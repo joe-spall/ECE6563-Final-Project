@@ -3,7 +3,7 @@
 % In this experiment edges between robots will be plotted as well as robot
 % labels and leader goal locations.
 
-% Sean Wilson and Joseph Spall
+% Sean Wilson, Joseph Spall, Juan Elizondo
 % 07/2019
 
 function [connected,num_iterations] = main_line_w_leader_front(varargin) 
@@ -48,12 +48,10 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
 
 
     % These are gains for our formation control algorithm
-    formation_control_gain = 5;
-    min_distance = robot_diameter+0.2;
-    max_distance = visibility_dist-0.1;
+    gain = 0.5;
 
     % Leader
-    leader_waypoint_dist = 0.1;
+    leader_waypoint_dist = robot_diameter;
     leader_color = 'r';
 
     % Follower
@@ -77,9 +75,6 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
     % Initialize velocity vector
     dxi = zeros(2, N);
 
-    % Tracks previous theta for rotation tracking
-    old_theta = zeros(1,N);
-
     % States
     L_states = 1:N_L; %Leaders
     F_states = N_L+1:N; %Followers
@@ -91,7 +86,7 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
     % Single-integrator -> unicycle dynamics mapping
     si_to_uni_dyn = create_si_to_uni_dynamics('LinearVelocityGain', 0.8);
     % Single-integrator barrier certificates
-    uni_barrier_cert = create_uni_barrier_certificate_with_boundary();
+    uni_barrier_cert = create_uni_barrier_certificate_with_boundary('BoundaryPoints',r.boundaries);
     % Single-integrator position controller
     leader_controller = create_si_position_controller('XVelocityGain', 0.8, 'YVelocityGain', 0.8, 'VelocityMagnitudeLimit', 0.08);
 
@@ -116,7 +111,6 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
         visibility_plot = gobjects(1,N);
     
         % Marker, font, and line sizes
-        marker_size_robot = determine_robot_marker_size(r,visibility_dist);
         marker_size_goal = determine_marker_size(r, 0.2);
         font_size = determine_font_size(r, 0.05);
         line_width = 3;
@@ -193,7 +187,7 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
             
             % Each cell has leader number at the beginning
             for leader = L_states
-                control_lines{leader} = [leader];
+                control_lines{leader} = leader;
             end
         end
         
@@ -236,7 +230,6 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
             
         end
         
-        gain = 0.5;
         for line_list_index = L_states
             current_line = control_lines{line_list_index};
             % Adjacent line formation from behind
@@ -387,8 +380,8 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
     robo_debug = parser.Results.RoboDebug;
     if robo_debug
         r.debug();
-    end   
- end
+    end
+end
 
 %% Helper Functions
 function status = are_points_connected(x1,x2, viz_angle, viz_dist)
@@ -444,14 +437,7 @@ function x_out = robot_to_global(x_robot, x_in)
          0              ,0              ,1];
     x_new = T*[x_in;1];
     x_out = x_new(1:2);
-end
-
-function [x_out, y_out] = norm_coord(x, y, axes, xlims, ylims)
-    x_out = ((x-xlims(1))/(xlims(2) - xlims(1)))*axes(3);
-    y_out = ((y-ylims(1))/(ylims(2) - ylims(1)))*axes(4);
-    x_out = axes(1) + x_out;
-    y_out = axes(2) + y_out;
-end       
+end    
 
 % Marker Size Helper Function to scale size with figure window
 % Input: robotarium instance, desired size of the marker in meters
