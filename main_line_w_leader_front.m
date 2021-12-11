@@ -240,7 +240,7 @@ function [connected,num_iterations] = main_line_w_leader_front(varargin)
 
                 radius = norm(x(1:2,i) - x(1:2,j));
                 % Difference in index matches graph linear distance
-                add_full_line = 2*(radius^2 - gain^2) ... 
+                add_full_line = 4*(radius^2 - gain^2) ... 
                     *(x(1:2, i) - x(1:2, j));
 
                 dxi(:, i) = dxi(:, i) + add_full_line;
