@@ -181,7 +181,7 @@ function [connected,num_iterations] = main_line_angle_formation(varargin)
 
         %% Follower Controller
 
-        followed_leaders = zeros(N_L,2);
+        followed_leaders = zeros(N_L,1);
         following_leaders = zeros(N,1);
         following_leaders(L_states) = 1;
         targets = zeros(N,1);
@@ -194,16 +194,16 @@ function [connected,num_iterations] = main_line_angle_formation(varargin)
                 neighbors = find(A(i,:)==1);
                 if any(following_leaders(neighbors))
                     [~,~,targets(i)] = find(following_leaders(neighbors),1);
-                    followed_leaders(targets(i),mod(i,2)+1) = 1;
+                    followed_leaders(targets(i)) = 1;
                     following_leaders(i) = 1;
                 else
                     targets(i) = neighbors(1);
                 end
                 for j = neighbors
                     if any(j==L_states)
-                        if (followed_leaders(j,mod(i,2)+1)==0)
+                        if (followed_leaders(j)==0)
                             targets(i) = j;
-                            followed_leaders(j,mod(i,2)+1) = 1;
+                            followed_leaders(j) = 1;
                             following_leaders(i) = 1;
                             break;
                         end
